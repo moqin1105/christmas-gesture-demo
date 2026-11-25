@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#100e0b">
+  <title>圣诞粒子交互</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --gold: #f5c978;
+      --muted: #a89c87;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      overflow: hidden;
+      color: #fff7e8;
+      background:
+        radial-gradient(ellipse at 50% 48%, rgba(116, 72, 22, .17), transparent 49%),
+        radial-gradient(ellipse at 50% 100%, rgba(178, 102, 24, .12), transparent 52%),
+        #100e0b;
+    }
+    #scene { position: fixed; inset: 0; width: 100%; height: 100%; }
+    .grain {
+      position: fixed; inset: 0; pointer-events: none; opacity: .14;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.14'/%3E%3C/svg%3E");
+      mix-blend-mode: soft-light;
+    }
+    header {
+      position: fixed; inset: 0 0 auto; display: flex; justify-content: space-between;
+      align-items: flex-start; padding: 28px 34px; z-index: 3;
+    }
+    .brand { display: flex; gap: 12px; align-items: center; }
+    .brand-mark {
+      width: 36px; height: 36px; display: grid; place-items: center; border-radius: 12px;
+      color: var(--gold); border: 1px solid rgba(245,201,120,.32); background: rgba(245,201,120,.08);
+      box-shadow: 0 0 24px rgba(245,201,120,.08);
+    }
+    .brand-title { font-size: 13px; letter-spacing: .16em; font-weight: 600; }
+    .brand-subtitle { margin-top: 5px; font-size: 10px; letter-spacing: .18em; color: #978c79; }
+    .live {
+      display: flex; align-items: center; gap: 8px; padding: 9px 13px; border-radius: 99px;
+      border: 1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.035);
+      font-size: 11px; color: #c9c0b1; letter-spacing: .08em;
+    }
+    .dot { width: 6px; height: 6px; background: #d7a64e; border-radius: 50%; box-shadow: 0 0 10px #d7a64e; }
+    main { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; }
+    .greeting {
+      position: absolute; top: 9%; text-align: center; opacity: .9;
+      text-shadow: 0 0 24px rgba(246,192,93,.35); transition: opacity .4s, transform .4s;
+    }
+    .greeting h1 {
+      margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 400;
+      font-size: clamp(24px, 3.2vw, 42px); letter-spacing: .28em; color: #f7d999;
+    }
+    .greeting p { margin: 12px 0 0; color: #9c8b6e; font-size: 10px; letter-spacing: .26em; }
+    .greeting.hidden { opacity: 0; transform: translateY(-10px); }
+    .hint {
+      position: absolute; bottom: 17%; text-align: center; color: #9e927c;
+      font-size: 11px; letter-spacing: .1em; transition: opacity .3s;
+    }
+    .hint strong { color: #e6c27d; font-weight: 500; }
+    .cards {
+      position: absolute; inset: 0; display: flex; justify-content: center; align-items: center;
+      gap: clamp(14px, 3vw, 38px); opacity: 0; transform: scale(.85) translateY(14px);
+      transition: opacity .5s ease, transform .6s cubic-bezier(.2,.8,.2,1);
+    }
+    .cards.visible { opacity: 1; transform: scale(1) translateY(0); }
+    .photo {
+      width: clamp(130px, 18vw, 224px); aspect-ratio: .78; position: relative; overflow: hidden;
+      padding: 7px; border-radius: 15px; border: 1px solid #ed9d48;
+      background: linear-gradient(145deg, rgba(237,157,72,.25), rgba(38,23,15,.9));
+      box-shadow: 0 0 32px rgba(238,143,53,.28), 0 18px 70px rgba(0,0,0,.4);
+    }
+    .portrait, .pet {
+      height: 100%; border-radius: 9px; position: relative; overflow: hidden;
+      display: grid; place-items: center;
+    }
+    .portrait {
+      background: radial-gradient(ellipse at 50% 40%, #f0bf8c 0 12%, transparent 13%),
+        radial-gradient(ellipse at 50% 82%, #49312c 0 27%, transparent 28%),
+        radial-gradient(ellipse at 48% 47%, #d69665 0 22%, transparent 23%),
+        linear-gradient(150deg, #c17a51, #2e2522 68%);
+    }
+    .portrait::before {
+      content: ""; position: absolute; width: 35%; height: 39%; top: 22%; left: 32%;
+      border-radius: 48% 48% 44% 44%; background: linear-gradient(110deg,#f1c99f,#b97051);
+      box-shadow: 0 -12px 0 -2px #30211f, 0 65px 0 14px #44302b;
+    }
+    .pet { background: radial-gradient(ellipse at 50% 56%, #f4d296 0 23%, transparent 24%), linear-gradient(155deg,#6b542e,#252018 70%); }
+    .pet::before, .pet::after {
+      content: ""; position: absolute; width: 22%; height: 28%; top: 30%;
+      background: #d5ad6e; border-radius: 70% 20% 65% 20%;
+    }
+    .pet::before { left: 28%; transform: rotate(-24deg); }
+    .pet::after { right: 28%; transform: scaleX(-1) rotate(-24deg); }
+    .pet-face { position: absolute; top: 48%; left: 50%; transform: translateX(-50%); font-size: clamp(20px,3vw,34px); }
+    .photo-label {
+      position: absolute; bottom: 10px; left: 0; right: 0; text-align: center;
+      color: rgba(255,242,219,.82); font-size: 10px; letter-spacing: .14em;
+    }
+    .panel {
+      position: fixed; left: 50%; bottom: 28px; z-index: 4; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 8px; padding: 8px;
+      border: 1px solid rgba(255,255,255,.1); border-radius: 16px;
+      background: rgba(25,22,18,.78); backdrop-filter: blur(16px);
+      box-shadow: 0 12px 40px rgba(0,0,0,.28); pointer-events: auto;
+    }
+    button {
+      border: 0; color: #cfc4b0; background: transparent; padding: 10px 13px;
+      border-radius: 10px; font: inherit; font-size: 11px; cursor: pointer;
+      transition: background .2s, color .2s;
+    }
+    button:hover, button.active { color: #f6d795; background: rgba(245,201,120,.11); }
+    button.camera { margin-left: 4px; border: 1px solid rgba(245,201,120,.26); color: #f3d28e; }
+    .cam-wrap {
+      position: fixed; right: 24px; bottom: 26px; width: 158px; aspect-ratio: 4/3;
+      z-index: 3; overflow: hidden; border-radius: 12px; border: 1px solid rgba(245,201,120,.35);
+      background: #17130e; box-shadow: 0 8px 30px #0008; display: none;
+    }
+    .cam-wrap.visible { display: block; }
+    video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); opacity: .78; }
+    .cam-label {
+      position: absolute; bottom: 6px; left: 8px; font-size: 9px; color: #f7d999;
+      text-shadow: 0 1px 5px #000; letter-spacing: .08em;
+    }
+    .status {
+      position: fixed; left: 50%; bottom: 94px; z-index: 3; transform: translateX(-50%);
+      color: #b7a98f; font-size: 10px; letter-spacing: .1em; white-space: nowrap;
+    }
+    .status b { color: #f0ce8b; font-weight: 500; }
+    .footer-note {
+      position: fixed; bottom: 31px; right: 34px; color: #756d60; font-size: 9px;
+      letter-spacing: .06em; text-align: right; line-height: 1.7;
+    }
+    @media (max-width: 700px) {
+      header { padding: 18px; }
+      .brand-subtitle { display: none; }
+      .live { padding: 8px 10px; font-size: 9px; }
+      .greeting { top: 18%; }
+      .hint { bottom: 22%; padding: 0 20px; line-height: 1.8; }
+      .panel { bottom: 18px; width: calc(100% - 24px); justify-content: center; gap: 0; }
+      button { padding: 10px 9px; font-size: 10px; }
+      button.camera { padding: 10px; }
+      .status { bottom: 78px; }
+      .cam-wrap { right: 12px; bottom: 82px; width: 112px; }
+      .footer-note { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="scene" aria-label="金色粒子圣诞树动画"></canvas>
+  <div class="grain"></div>
+  <header>
+    <div class="brand">
+      <div class="brand-mark">✦</div>
+      <div><div class="brand-title">冬日粒子实验室</div><div class="brand-subtitle">GESTURE INTERACTION · 01</div></div>
+    </div>
+    <div class="live"><span class="dot"></span><span id="liveText">演示模式</span></div>
+  </header>
+  <main>
+    <div class="greeting" id="greeting">
+      <h1>MERRY CHRISTMAS</h1>
+      <p>愿每一束微光，都带来温暖</p>
+    </div>
+    <div class="cards" id="cards" aria-label="人像与宠物照片卡片">
+      <div class="photo"><div class="portrait"></div><div class="photo-label">珍藏时刻</div></div>
+      <div class="photo"><div class="pet"><span class="pet-face">•ᴥ•</span></div><div class="photo-label">冬日伙伴</div></div>
+    </div>
+    <div class="hint" id="hint">伸出手势，点亮你的圣诞树　·　<strong>握拳 / 张掌 / OK</strong></div>
+  </main>
+  <div class="cam-wrap" id="camWrap"><video id="video" playsinline muted></video><span class="cam-label" id="camLabel">本地手势识别</span></div>
+  <div class="status" id="status">当前状态：<b>圣诞树已点亮</b></div>
+  <nav class="panel" aria-label="手势演示控制">
+    <button data-gesture="fist" class="active" title="快捷键 1">✊ 握拳</button>
+    <button data-gesture="open" title="快捷键 2">✋ 张掌</button>
+    <button data-gesture="ok" title="快捷键 3">👌 OK 手势</button>
+    <button class="camera" id="cameraBtn">启用摄像头</button>
+  </nav>
+  <div class="footer-note">摄像头仅在本机浏览器处理<br>手势不会上传或保存</div>
+
+  <script type="module">
+    const canvas = document.querySelector("#scene");
+    const ctx = canvas.getContext("2d");
+    const greeting = document.querySelector("#greeting");
+    const cards = document.querySelector("#cards");
+    const hint = document.querySelector("#hint");
+    const status = document.querySelector("#status b");
+    const cameraBtn = document.querySelector("#cameraBtn");
+    const video = document.querySelector("#video");
+    const camWrap = document.querySelector("#camWrap");
+    const camLabel = document.querySelector("#camLabel");
+    const liveText = document.querySelector("#liveText");
+    const buttons = [...document.querySelectorAll("[data-gesture]")];
+    const TAU = Math.PI * 2;
+    let width = 0, height = 0, dpr = 1, particles = [], mode = "tree";
+    let handLandmarker = null, stream = null, lastVideoTime = -1, lastGesture = "", gestureSince = 0;
+    let lastApplied = "", lastAppliedAt = 0, loading = false;
+
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = window.innerWidth; height = window.innerHeight;
+      canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
+      canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      makeParticles();
+    }
+    function random(a, b) { return a + Math.random() * (b - a); }
+    function treePoint(i, total) {
+      const t = i / total;
+      const y = t;
+      const half = Math.max(8, Math.min(width * .24, height * .32)) * (1 - y);
+      const cx = width / 2;
+      const py = height * .65 - y * height * .43;
+      const x = cx + random(-half, half);
+      return { x, y: py + random(-7, 7) };
+    }
+    function makeParticles() {
+      const total = Math.min(1150, Math.max(520, Math.floor(width * height / 1450)));
+      particles = Array.from({ length: total }, (_, i) => {
+        const p = treePoint(i, total);
+        return {
+          x: p.x, y: p.y, tx: p.x, ty: p.y,
+          ox: random(0, width), oy: random(0, height),
+          size: random(.7, 2.2), phase: random(0, TAU), speed: random(.35, 1.1),
+          hue: Math.random() < .08 ? random(8, 40) : random(37, 51),
+          alpha: random(.4, .95), seed: random(0, 1000)
+        };
+      });
+      if (mode === "tree") setTargets("tree");
+    }
+    function setTargets(next) {
+      mode = next;
+      const total = particles.length;
+      particles.forEach((p, i) => {
+        if (next === "tree") {
+          const point = treePoint(i, total);
+          p.tx = point.x; p.ty = point.y;
+        } else if (next === "burst") {
+          const angle = random(0, TAU), radius = random(40, Math.max(width, height) * .54);
+          p.tx = width / 2 + Math.cos(angle) * radius;
+          p.ty = height * .53 + Math.sin(angle) * radius * .72;
+        }
+      });
+      cards.classList.toggle("visible", next === "photos");
+      greeting.classList.toggle("hidden", next !== "tree");
+      hint.style.opacity = next === "photos" ? "0" : ".85";
+      if (next === "tree") status.textContent = "圣诞树已点亮";
+      if (next === "burst") status.textContent = "粒子正在绽放";
+      if (next === "photos") status.textContent = "回忆已浮现";
+      buttons.forEach(b => b.classList.toggle("active",
+        (next === "tree" && b.dataset.gesture === "fist") ||
+        (next === "burst" && b.dataset.gesture === "open") ||
+        (next === "photos" && b.dataset.gesture === "ok")));
+      if (next === "burst") {
+        particles.forEach(p => {
+          const angle = Math.atan2(p.ty - height * .53, p.tx - width / 2);
+          p.vx = Math.cos(angle) * random(1.2, 4.5);
+          p.vy = Math.sin(angle) * random(1.2, 4.5);
+        });
+      }
+    }
+    function setGesture(gesture) {
+      if (gesture === "fist") setTargets("tree");
+      if (gesture === "open") setTargets("burst");
+      if (gesture === "ok") setTargets("photos");
+    }
+    function drawOrnaments(time) {
+      const cx = width / 2, top = height * .22, bottom = height * .65;
+      const treeW = Math.min(width * .24, height * .32);
+      const ornaments = [
+        [.48,.19,"#e8ad55"],[.28,.34,"#c85739"],[.7,.3,"#f1cb75"],[.39,.43,"#cc5938"],
+        [.63,.42,"#dfb35e"],[.2,.53,"#efcc7b"],[.8,.53,"#bd4a32"],[.51,.59,"#f6d990"],
+        [.34,.65,"#d28a3a"],[.71,.68,"#efc96b"],[.15,.72,"#c95437"],[.83,.77,"#edc66a"]
+      ];
+      if (mode === "tree" || mode === "photos") {
+        ornaments.forEach(([rx, ry, color], i) => {
+          const x = cx + (rx - .5) * treeW * 2;
+          const y = top + ry * (bottom - top);
+          const pulse = .75 + Math.sin(time * .0018 + i * 1.7) * .25;
+          const r = 2.3 + pulse * 1.4;
+          ctx.beginPath(); ctx.arc(x, y, r * 3.4, 0, TAU);
+          ctx.fillStyle = `${color}22`; ctx.fill();
+          ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+          ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 12 * pulse; ctx.fill(); ctx.shadowBlur = 0;
+        });
+        ctx.beginPath();
+        ctx.moveTo(cx, top - 13); ctx.lineTo(cx + 5, top - 3); ctx.lineTo(cx + 16, top);
+        ctx.lineTo(cx + 5, top + 4); ctx.lineTo(cx, top + 15); ctx.lineTo(cx - 5, top + 4);
+        ctx.lineTo(cx - 16, top); ctx.lineTo(cx - 5, top - 3); ctx.closePath();
+        ctx.fillStyle = "#ffe4a0"; ctx.shadowColor = "#f3c45f"; ctx.shadowBlur = 24; ctx.fill(); ctx.shadowBlur = 0;
+      }
+    }
+    function animate(time) {
+      ctx.clearRect(0, 0, width, height);
+      const glow = ctx.createRadialGradient(width/2, height*.5, 0, width/2, height*.5, Math.min(width,height)*.48);
+      glow.addColorStop(0, "rgba(231,163,66,.055)"); glow.addColorStop(1, "rgba(231,163,66,0)");
+      ctx.fillStyle = glow; ctx.fillRect(0,0,width,height);
+      particles.forEach(p => {
+        if (mode === "burst") {
+          p.x += p.vx || 0; p.y += p.vy || 0;
+          p.vx *= .986; p.vy *= .986;
+          p.alpha *= .9993;
+          if (p.x < -20 || p.x > width + 20 || p.y < -20 || p.y > height + 20) {
+            p.x = width/2 + random(-12,12); p.y = height*.53 + random(-12,12);
+            p.alpha = random(.5,.95);
+            const a = random(0,TAU), s = random(1,3.8); p.vx = Math.cos(a)*s; p.vy = Math.sin(a)*s;
+          }
+        } else {
+          p.x += (p.tx - p.x) * (mode === "tree" ? .055 : .035);
+          p.y += (p.ty - p.y) * (mode === "tree" ? .055 : .035);
+          p.alpha += ((.5 + Math.sin(time*.001*p.speed+p.phase)*.42)-p.alpha)*.04;
+        }
+        const twinkle = .65 + Math.sin(time*.002 + p.phase) * .35;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (mode === "tree" ? twinkle : 1), 0, TAU);
+        ctx.fillStyle = `hsla(${p.hue}, 78%, ${mode === "burst" ? 74 : 67}%, ${Math.max(0,p.alpha)})`;
+        ctx.shadowColor = `hsla(${p.hue}, 90%, 65%, .75)`;
+        ctx.shadowBlur = mode === "tree" ? 9 : 12; ctx.fill(); ctx.shadowBlur = 0;
+      });
+      drawOrnaments(time);
+      requestAnimationFrame(animate);
+    }
+    buttons.forEach(button => button.addEventListener("click", () => setGesture(button.dataset.gesture)));
+    window.addEventListener("keydown", event => {
+      if (event.key === "1") setGesture("fist");
+      if (event.key === "2") setGesture("open");
+      if (event.key === "3") setGesture("ok");
+    });
+
+    function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+    function classifyHand(points) {
+      const palm = Math.max(distance(points[5], points[17]), .001);
+      const extended = [[8,6],[12,10],[16,14],[20,18]].map(([tip, joint]) => points[tip].y < points[joint].y);
+      const tipGap = distance(points[4], points[8]) / palm;
+      const otherExtended = extended.filter(Boolean).length;
+      if (tipGap < .28 && otherExtended >= 2) return "ok";
+      if (otherExtended >= 3) return "open";
+      if (otherExtended === 0) return "fist";
+      return "";
+    }
+    async function loadHandTracking() {
+      if (loading) return;
+      loading = true;
+      cameraBtn.textContent = "正在启动…";
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 }, audio: false });
+        video.srcObject = stream;
+        await video.play();
+        camWrap.classList.add("visible");
+        liveText.textContent = "本地识别中";
+        const vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs");
+        const files = await vision.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm");
+        handLandmarker = await vision.HandLandmarker.createFromOptions(files, {
+          baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task" },
+          runningMode: "VIDEO", numHands: 1
+        });
+        cameraBtn.textContent = "关闭摄像头";
+        cameraBtn.classList.add("active");
+        loading = false;
+        requestAnimationFrame(trackFrame);
+      } catch (error) {
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        stream = null; camWrap.classList.remove("visible");
+        cameraBtn.textContent = "启用摄像头"; liveText.textContent = "演示模式";
+        loading = false;
+        alert(`无法启动手势识别：${error.message}\n请确认使用 localhost 或 HTTPS，并允许摄像头权限。`);
+      }
+    }
+    function stopHandTracking() {
+      if (stream) stream.getTracks().forEach(track => track.stop());
+      stream = null; handLandmarker = null; video.srcObject = null; camWrap.classList.remove("visible");
+      cameraBtn.textContent = "启用摄像头"; cameraBtn.classList.remove("active"); liveText.textContent = "演示模式";
+    }
+    function trackFrame(now) {
+      if (!handLandmarker || !stream) return;
+      if (video.currentTime !== lastVideoTime) {
+        lastVideoTime = video.currentTime;
+        const result = handLandmarker.detectForVideo(video, now);
+        const detected = result.landmarks?.[0] ? classifyHand(result.landmarks[0]) : "";
+        if (detected !== lastGesture) { lastGesture = detected; gestureSince = now; }
+        if (detected && now - gestureSince > 180 && (detected !== lastApplied || now - lastAppliedAt > 1100)) {
+          setGesture(detected); lastApplied = detected; lastAppliedAt = now;
+          camLabel.textContent = `识别到：${detected === "fist" ? "握拳" : detected === "open" ? "张掌" : "OK"}`;
+        } else if (!detected) camLabel.textContent = "本地手势识别";
+      }
+      requestAnimationFrame(trackFrame);
+    }
+    cameraBtn.addEventListener("click", () => stream ? stopHandTracking() : loadHandTracking());
+    window.addEventListener("resize", resize);
+    resize(); setTargets("tree"); requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
